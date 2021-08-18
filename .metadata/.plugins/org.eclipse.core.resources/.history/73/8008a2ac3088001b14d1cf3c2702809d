@@ -1,0 +1,122 @@
+package ass1;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+public class MParallelSorter1 implements Sorter {
+	//Credit to this different design from Stack overflow
+	//Source: https://stackoverflow.com/questions/34783815/java-recursive-mergesort-for-arraylists/34825244
+	
+	private static final ExecutorService executor = Executors.newCachedThreadPool();
+	
+	@Override
+	public <T extends Comparable<? super T>> List<T> sort(List<T> list) {
+		//First...
+		List<T> result = new ArrayList<T>();
+		result.addAll(list);
+		
+		//give to Sequential if less than 20 elements
+		if(result.size() < 20) {
+			MSequentialSorter s = new MSequentialSorter();
+			result = s.sort(result);
+		}
+		//Now, for the parallel sorting magic!
+		else {
+			//Initial starting indexes.
+			int left = 0;
+			int right = result.size() - 1;
+			
+			//Begin recursive sort!
+			result = sorting(result, left, right);
+		}
+		
+		return result;
+	}
+	
+	/**
+	 * Sorts recursively
+	 * @param list	The list that needs sorting.
+	 * @param left	left index.
+	 * @param right	right index.
+	 */
+	private <T extends Comparable<? super T>> List<T> sorting(List<T> list, int left, int right) {
+		List<T> result = new ArrayList<T>();
+		
+		if(left < right) {
+			int middle = left + (right-left)/2;
+			
+			List<T> returnedLeft = new ArrayList<T>();
+			List<T> returnedRight = new ArrayList<T>();
+			
+			//Do "this" to half of "this" iteration's array.
+			Future<List<T>> futureLeft = executor.submit(() -> sorting(list, left, middle));
+			Future<List<T>> futureRight = executor.submit(() -> sorting(list, middle + 1, right));
+			
+			//Merge "this"'s arrays into each other.
+			try {
+				result = merge(futureLeft.get(), futureRight.get(), left, middle, right);
+			} catch(InterruptedException e) {
+				e.printStackTrace();
+				System.out.println("[FAILED] MParallelSorter1 Interrupted Exception: " + e);
+			} catch(ExecutionException e) {
+				e.printStackTrace();
+				System.out.println("[FAILED] MParallelSorter1 Execution Exception: " + e);
+			}
+		}
+		
+		if(result.size() > 0) {
+			System.out.println("street race");
+		}
+		
+		return result;
+	}
+	
+	private <T extends Comparable<? super T>> List<T> merge(List<T> leftArray, List<T> rightArray, int left, int middle, int right) {
+		List<T> result = new ArrayList<T>();
+//		//Declare two sub arrays
+//		List<T> leftSubarray = new ArrayList<T>();
+//		List<T> rightSubarray = new ArrayList<T>();
+		
+//		//Fill the left sub array
+//		for(int i = 0; i < leftSize; i++)
+//			leftSubarray.add(i, result.get(left + i));
+//		
+//		//Fill the right sub array
+//		for(int i = 0; i < rightSize; i++)
+//			rightSubarray.add(i, result.get(middle + 1 + i));
+		
+		/* Merging */
+		//Initial indexes of the left and right sub arrays.
+		int leftIndex = 0, rightIndex = 0;
+		
+		//Compare and merge!!!
+		while(leftIndex < leftArray.size() && rightIndex < rightArray.size()) {
+			System.out.println("THE BEST: " + result.size());
+			if(leftArray.get(leftIndex).compareTo(rightArray.get(rightIndex)) < 0) {
+				result.add(leftArray.get(leftIndex));
+				leftIndex++;
+			} else {
+				result.add(rightArray.get(rightIndex));
+				rightIndex++;
+			}
+		}
+		
+		//Remainders
+		//Put the rest of the Left sub array in the product array, (IF ANY)
+		while(leftIndex < leftArray.size()) {
+			result.add(leftArray.get(leftIndex));
+			leftIndex++;
+		}
+		//Put the rest of the Right sub array in the product array, (IF ANY)
+		while(rightIndex < rightArray.size()) {
+			result.add(rightArray.get(rightIndex));
+			rightIndex++;
+		}
+		return result;
+	}
+
+}
